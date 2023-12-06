@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, File, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 from datetime import datetime
@@ -18,6 +18,9 @@ app.add_middleware(
 )
 
 dataFrameHoteles = pd.read_excel('./Libro1.xlsx')
+df_usuarios = pd.DataFrame(columns=['nombre', 'email', 'contacto', 'Hotel', 'Habitación', 'cant_adultos', 'cant_niños', 'valor_adultos', 'valor_niños', 'Desde', 'Hasta*', 'valor_total', 'cant_total'])
+# print(dataFrameHoteles)
+
 
 dataFrameHoteles['Desde'] = pd.to_datetime(dataFrameHoteles['Desde'])
 dataFrameHoteles['Hasta*'] = pd.to_datetime(dataFrameHoteles['Hasta*'])
@@ -69,6 +72,33 @@ async def upload_file(excel_file: UploadFile = File(...)):
     save_uploaded_file(excel_file, "Libro1.xlsx")
     
     return {"filename": excel_file.filename}
+
+@app.get("/api/mostrar_usuarios", response_class=HTMLResponse)
+async def mostrar_usuarios():
+    global df_usuarios
+
+    # Convertir el DataFrame a HTML
+    usuarios_html = df_usuarios.to_html()
+
+    # Crear la respuesta HTML
+    html_content = f"""
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Usuarios Registrados</title>
+    </head>
+    <body>
+        <h1>Usuarios Registrados</h1>
+        {usuarios_html}
+    </body>
+    </html>
+    """
+
+    return HTMLResponse(content=html_content)
+
+
 
 @app.post("/api/cotizar")
 def cotizar(data: dict):
@@ -136,13 +166,40 @@ def cotizar(data: dict):
 
 
     # Imprimir el nuevo DataFrame resumen_totalizado
-    print(resultado_df)
-    print(resumen_totalizado)
+    # print(resultado_df)
+    # print(resumen_totalizado)
+  
 
     # Convertir el DataFrame resumen_totalizado a un diccionario JSON
     resultado_json = resumen_totalizado.to_dict(orient='records')
 
     return {'resultado': resultado_json}
+
+@app.post("/api/guardar_usuario")
+async def guardar_usuario(data: dict):
+    global df_usuarios
+
+    solicitud_cotizacion = {
+        'nombre': data['nombre'],
+        'email': data['email'],
+        'contacto': data['contacto'],
+        'Hotel': data['eleccionUsuario']['Hotel'],
+        'Habitación': data['eleccionUsuario']['Habitación'],
+        'cant_adultos': data['eleccionUsuario']['cant_adultos'],
+        'cant_niños': data['eleccionUsuario']['cant_niños'],
+        'valor_adultos': data['eleccionUsuario']['valor_adultos'],
+        'valor_niños': data['eleccionUsuario']['valor_niños'],
+        'Desde': pd.to_datetime(data['eleccionUsuario']['Desde']).strftime('%d/%m/%Y'),
+        'Hasta*': pd.to_datetime(data['eleccionUsuario']['Hasta*']).strftime('%d/%m/%Y'),
+        'valor_total': data['eleccionUsuario']['valor_total'],
+        'cant_total': data['eleccionUsuario']['cant_total'],
+    }
+
+    # Agregar la nueva solicitud al DataFrame global de usuarios
+    df_usuarios = pd.concat([df_usuarios, pd.DataFrame([solicitud_cotizacion])], ignore_index=True)
+    print(df_usuarios)
+
+    return {"mensaje": "Datos recibidos y procesados correctamente"}
 
 if __name__ == '__main__':
     import uvicorn
